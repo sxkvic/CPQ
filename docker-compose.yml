@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cpq-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cpq
+      POSTGRES_PASSWORD: cpq_password
+      POSTGRES_DB: cpq
+    ports:
+      - "5432:5432"
+    volumes:
+      - cpq_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cpq -d cpq"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: cpq-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://cpq:cpq_password@db:5432/cpq?schema=public
+      JWT_SECRET: replace-with-a-long-random-secret
+      JWT_EXPIRES_IN: 1d
+      API_PORT: 3000
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: cpq-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  cpq_db_data:

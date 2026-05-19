@@ -1,0 +1,573 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum ProductType {
+  physical
+  software
+  service
+  bundle
+}
+
+enum ProductStatus {
+  draft
+  active
+  inactive
+}
+
+enum QuoteStatus {
+  draft
+  pending_approval
+  approved
+  sent
+  accepted
+  rejected
+  expired
+  canceled
+  converted
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+  withdrawn
+}
+
+enum ContractStatus {
+  draft
+  pending_signature
+  active
+  expired
+  terminated
+}
+
+enum SubscriptionStatus {
+  pending
+  active
+  suspended
+  expired
+  canceled
+}
+
+enum IntegrationEventStatus {
+  pending
+  sent
+  failed
+}
+
+model User {
+  id           String     @id @default(uuid())
+  username     String     @unique
+  passwordHash String     @map("password_hash")
+  displayName  String     @map("display_name")
+  email        String?
+  phone        String?
+  roleCode     String     @default("sales") @map("role_code")
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  ownedCustomers Customer[]
+  ownedQuotes    Quote[]
+
+  @@map("users")
+}
+
+model Customer {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  industry       String?
+  region         String?
+  grade          String?
+  taxNumber      String?  @map("tax_number")
+  billingAddress String?  @map("billing_address")
+  ownerId        String?  @map("owner_id")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  owner         User?          @relation(fields: [ownerId], references: [id])
+  contacts      Contact[]
+  opportunities Opportunity[]
+  quotes        Quote[]
+  orders        Order[]
+  contracts     Contract[]
+  subscriptions Subscription[]
+
+  @@index([name])
+  @@index([ownerId])
+  @@map("customers")
+}
+
+model Contact {
+  id         String  @id @default(uuid())
+  customerId String  @map("customer_id")
+  name       String
+  title      String?
+  phone      String?
+  email      String?
+  isPrimary  Boolean @default(false) @map("is_primary")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quotes   Quote[]
+
+  @@index([customerId])
+  @@map("contacts")
+}
+
+model Opportunity {
+  id                String   @id @default(uuid())
+  customerId        String   @map("customer_id")
+  name              String
+  stage             String   @default("lead")
+  expectedCloseDate DateTime? @map("expected_close_date")
+  estimatedAmount   Decimal? @map("estimated_amount") @db.Decimal(18, 2)
+  ownerId           String?  @map("owner_id")
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quotes   Quote[]
+
+  @@index([customerId])
+  @@map("opportunities")
+}
+
+model ProductCategory {
+  id        String  @id @default(uuid())
+  parentId  String? @map("parent_id")
+  code      String  @unique
+  name      String
+  sortOrder Int     @default(0) @map("sort_order")
+  status    String  @default("active")
+
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id            String        @id @default(uuid())
+  categoryId    String?       @map("category_id")
+  sku           String        @unique
+  name          String
+  productType   ProductType   @default(physical) @map("product_type")
+  unit          String        @default("件")
+  description   String?
+  standardCost  Decimal?      @map("standard_cost") @db.Decimal(18, 2)
+  standardPrice Decimal       @default(0) @map("standard_price") @db.Decimal(18, 2)
+  status        ProductStatus @default(draft)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  category       ProductCategory? @relation(fields: [categoryId], references: [id])
+  options        ProductOption[]
+  configurationRules ConfigurationRule[]
+  priceBookItems PriceBookItem[]
+  quoteItems     QuoteItem[]
+  subscriptions  Subscription[]
+
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductOption {
+  id         String  @id @default(uuid())
+  productId  String  @map("product_id")
+  code       String
+  name       String
+  optionType String  @default("single") @map("option_type")
+  isRequired Boolean @default(false) @map("is_required")
+  sortOrder  Int     @default(0) @map("sort_order")
+  status     String  @default("active")
+
+  product Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  values  ProductOptionValue[]
+
+  @@unique([productId, code])
+  @@map("product_options")
+}
+
+model ProductOptionValue {
+  id         String  @id @default(uuid())
+  optionId   String  @map("option_id")
+  code       String
+  label      String
+  priceDelta Decimal @default(0) @map("price_delta") @db.Decimal(18, 2)
+  costDelta  Decimal @default(0) @map("cost_delta") @db.Decimal(18, 2)
+  isDefault  Boolean @default(false) @map("is_default")
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  option ProductOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@unique([optionId, code])
+  @@map("product_option_values")
+}
+
+model ConfigurationRule {
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  code          String   @unique
+  name          String
+  ruleType      String   @map("rule_type")
+  conditionJson Json     @map("condition_json")
+  actionJson    Json     @map("action_json")
+  message       String
+  severity      String   @default("error")
+  status        String   @default("active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("configuration_rules")
+}
+
+model PriceBook {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  name          String
+  currency      String    @default("CNY")
+  region        String?
+  customerGrade String?   @map("customer_grade")
+  channel       String?
+  effectiveAt   DateTime  @default(now()) @map("effective_at")
+  expiredAt     DateTime? @map("expired_at")
+  status        String    @default("active")
+
+  items  PriceBookItem[]
+  quotes Quote[]
+
+  @@map("price_books")
+}
+
+model PriceBookItem {
+  id          String   @id @default(uuid())
+  priceBookId String   @map("price_book_id")
+  productId   String   @map("product_id")
+  minQuantity Int      @default(1) @map("min_quantity")
+  maxQuantity Int?     @map("max_quantity")
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 2)
+  costPrice   Decimal? @map("cost_price") @db.Decimal(18, 2)
+
+  priceBook PriceBook @relation(fields: [priceBookId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([priceBookId])
+  @@index([productId])
+  @@map("price_book_items")
+}
+
+model Quote {
+  id              String      @id @default(uuid())
+  quoteNo         String      @unique @map("quote_no")
+  version         Int         @default(1)
+  customerId      String      @map("customer_id")
+  contactId       String?     @map("contact_id")
+  opportunityId   String?     @map("opportunity_id")
+  ownerId         String?     @map("owner_id")
+  priceBookId     String?     @map("price_book_id")
+  currency        String      @default("CNY")
+  status          QuoteStatus @default(draft)
+  validUntil      DateTime?   @map("valid_until")
+  subtotalAmount  Decimal     @default(0) @map("subtotal_amount") @db.Decimal(18, 2)
+  discountAmount  Decimal     @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  serviceFee      Decimal     @default(0) @map("service_fee") @db.Decimal(18, 2)
+  shippingFee     Decimal     @default(0) @map("shipping_fee") @db.Decimal(18, 2)
+  taxAmount       Decimal     @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount     Decimal     @default(0) @map("total_amount") @db.Decimal(18, 2)
+  totalCost       Decimal     @default(0) @map("total_cost") @db.Decimal(18, 2)
+  grossMarginRate Decimal     @default(0) @map("gross_margin_rate") @db.Decimal(8, 4)
+  paymentTerms    String?     @map("payment_terms")
+  deliveryTerms   String?     @map("delivery_terms")
+  remarks         String?
+  submittedAt     DateTime?   @map("submitted_at")
+  approvedAt      DateTime?   @map("approved_at")
+  sentAt          DateTime?   @map("sent_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  contact     Contact?     @relation(fields: [contactId], references: [id])
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id])
+  owner       User?        @relation(fields: [ownerId], references: [id])
+  priceBook   PriceBook?   @relation(fields: [priceBookId], references: [id])
+  items       QuoteItem[]
+  versions    QuoteVersion[]
+  approvals   QuoteApproval[]
+  documents   QuoteDocument[]
+  contracts   Contract[]
+  integrationEvents IntegrationEvent[]
+  order       Order?
+
+  @@index([customerId])
+  @@index([ownerId])
+  @@index([status])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id                  String  @id @default(uuid())
+  quoteId             String  @map("quote_id")
+  productId           String  @map("product_id")
+  lineNo              Int     @map("line_no")
+  productNameSnapshot String  @map("product_name_snapshot")
+  skuSnapshot         String  @map("sku_snapshot")
+  quantity            Decimal @default(1) @db.Decimal(18, 2)
+  unit                String
+  unitPrice           Decimal @map("unit_price") @db.Decimal(18, 2)
+  costPrice           Decimal @default(0) @map("cost_price") @db.Decimal(18, 2)
+  optionConfigJson    Json?   @map("option_config_json")
+  listAmount          Decimal @default(0) @map("list_amount") @db.Decimal(18, 2)
+  discountRate        Decimal @default(0) @map("discount_rate") @db.Decimal(8, 4)
+  discountAmount      Decimal @default(0) @map("discount_amount") @db.Decimal(18, 2)
+  netAmount           Decimal @default(0) @map("net_amount") @db.Decimal(18, 2)
+  taxRate             Decimal @default(0.13) @map("tax_rate") @db.Decimal(8, 4)
+  taxAmount           Decimal @default(0) @map("tax_amount") @db.Decimal(18, 2)
+  totalAmount         Decimal @default(0) @map("total_amount") @db.Decimal(18, 2)
+
+  quote   Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  subscriptions Subscription[]
+
+  @@index([quoteId])
+  @@map("quote_items")
+}
+
+model QuoteVersion {
+  id           String   @id @default(uuid())
+  quoteId      String   @map("quote_id")
+  version      Int
+  snapshotJson Json     @map("snapshot_json")
+  changeNote   String?  @map("change_note")
+  createdBy    String?  @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@unique([quoteId, version])
+  @@map("quote_versions")
+}
+
+model QuoteApproval {
+  id                  String         @id @default(uuid())
+  quoteId             String         @map("quote_id")
+  status              ApprovalStatus @default(pending)
+  currentStep         Int            @default(1) @map("current_step")
+  triggerReasonsJson  Json           @map("trigger_reasons_json")
+  submittedBy         String?        @map("submitted_by")
+  submittedAt         DateTime       @default(now()) @map("submitted_at")
+  completedAt         DateTime?      @map("completed_at")
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  logs  QuoteApprovalLog[]
+
+  @@index([quoteId])
+  @@map("quote_approvals")
+}
+
+model QuoteApprovalLog {
+  id         String   @id @default(uuid())
+  approvalId String   @map("approval_id")
+  step       Int
+  approverId String?  @map("approver_id")
+  action     String
+  comment    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  approval QuoteApproval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+
+  @@map("quote_approval_logs")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String?  @map("actor_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  beforeJson   Json?    @map("before_json")
+  afterJson    Json?    @map("after_json")
+  ipAddress    String?  @map("ip_address")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}
+
+model Order {
+  id          String   @id @default(uuid())
+  orderNo     String   @unique @map("order_no")
+  quoteId     String   @unique @map("quote_id")
+  customerId  String   @map("customer_id")
+  status      String   @default("created")
+  totalAmount Decimal  @default(0) @map("total_amount") @db.Decimal(18, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  quote    Quote    @relation(fields: [quoteId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  contracts Contract[]
+  subscriptions Subscription[]
+  integrationEvents IntegrationEvent[]
+
+  @@index([customerId])
+  @@map("orders")
+}
+
+model DocumentTemplate {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  templateType String   @default("quote") @map("template_type")
+  contentHtml  String   @map("content_html")
+  isDefault    Boolean  @default(false) @map("is_default")
+  version      Int      @default(1)
+  status       String   @default("active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  documents QuoteDocument[]
+
+  @@map("document_templates")
+}
+
+model QuoteDocument {
+  id           String   @id @default(uuid())
+  quoteId      String   @map("quote_id")
+  templateId   String?  @map("template_id")
+  documentNo   String   @unique @map("document_no")
+  title        String
+  status       String   @default("generated")
+  htmlSnapshot String   @map("html_snapshot")
+  generatedBy  String?  @map("generated_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  quote    Quote             @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  template DocumentTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([quoteId])
+  @@index([templateId])
+  @@map("quote_documents")
+}
+
+model Contract {
+  id                String         @id @default(uuid())
+  contractNo        String         @unique @map("contract_no")
+  quoteId           String?        @map("quote_id")
+  orderId           String?        @map("order_id")
+  customerId        String         @map("customer_id")
+  status            ContractStatus @default(draft)
+  currency          String         @default("CNY")
+  totalAmount       Decimal        @default(0) @map("total_amount") @db.Decimal(18, 2)
+  startDate         DateTime?      @map("start_date")
+  endDate           DateTime?      @map("end_date")
+  paymentTerms      String?        @map("payment_terms")
+  deliveryTerms     String?        @map("delivery_terms")
+  renewalNoticeDays Int            @default(30) @map("renewal_notice_days")
+  signedAt          DateTime?      @map("signed_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  quote       Quote?       @relation(fields: [quoteId], references: [id])
+  order       Order?       @relation(fields: [orderId], references: [id])
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  subscriptions Subscription[]
+  integrationEvents IntegrationEvent[]
+
+  @@index([customerId])
+  @@index([quoteId])
+  @@index([orderId])
+  @@map("contracts")
+}
+
+model Subscription {
+  id                String             @id @default(uuid())
+  subscriptionNo    String             @unique @map("subscription_no")
+  contractId        String?            @map("contract_id")
+  orderId           String?            @map("order_id")
+  customerId        String             @map("customer_id")
+  productId         String             @map("product_id")
+  quoteItemId       String?            @map("quote_item_id")
+  status            SubscriptionStatus @default(pending)
+  billingCycle      String             @default("monthly") @map("billing_cycle")
+  quantity          Decimal            @default(1) @db.Decimal(18, 2)
+  unitPrice         Decimal            @default(0) @map("unit_price") @db.Decimal(18, 2)
+  startDate         DateTime           @map("start_date")
+  endDate           DateTime?          @map("end_date")
+  nextBillingAt     DateTime?          @map("next_billing_at")
+  autoRenew         Boolean            @default(false) @map("auto_renew")
+  renewalTermMonths Int                @default(12) @map("renewal_term_months")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  contract  Contract?  @relation(fields: [contractId], references: [id])
+  order     Order?     @relation(fields: [orderId], references: [id])
+  customer  Customer   @relation(fields: [customerId], references: [id])
+  product   Product    @relation(fields: [productId], references: [id])
+  quoteItem QuoteItem? @relation(fields: [quoteItemId], references: [id])
+
+  @@index([contractId])
+  @@index([customerId])
+  @@index([productId])
+  @@map("subscriptions")
+}
+
+model IntegrationEndpoint {
+  id           String    @id @default(uuid())
+  code         String    @unique
+  name         String
+  targetSystem String    @map("target_system")
+  eventType    String    @map("event_type")
+  url          String?
+  authType     String    @default("none") @map("auth_type")
+  status       String    @default("active")
+  lastSyncAt   DateTime? @map("last_sync_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  events IntegrationEvent[]
+
+  @@map("integration_endpoints")
+}
+
+model IntegrationEvent {
+  id          String                 @id @default(uuid())
+  endpointId  String?                @map("endpoint_id")
+  quoteId     String?                @map("quote_id")
+  orderId     String?                @map("order_id")
+  contractId  String?                @map("contract_id")
+  resourceType String                @map("resource_type")
+  resourceId   String                @map("resource_id")
+  eventType    String                @map("event_type")
+  status       IntegrationEventStatus @default(pending)
+  payloadJson  Json                  @map("payload_json")
+  responseJson Json?                 @map("response_json")
+  retryCount   Int                   @default(0) @map("retry_count")
+  nextRetryAt  DateTime?             @map("next_retry_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  endpoint IntegrationEndpoint? @relation(fields: [endpointId], references: [id])
+  quote    Quote?               @relation(fields: [quoteId], references: [id])
+  order    Order?               @relation(fields: [orderId], references: [id])
+  contract Contract?            @relation(fields: [contractId], references: [id])
+
+  @@index([resourceType, resourceId])
+  @@index([status])
+  @@map("integration_events")
+}
