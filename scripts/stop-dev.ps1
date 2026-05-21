@@ -1,16 +1,11 @@
 $ErrorActionPreference = "Stop"
 
-$processes = Get-CimInstance Win32_Process -Filter "name = 'node.exe'" | Where-Object {
-  $_.CommandLine -like '*apps/web*' -or
-  $_.CommandLine -like '*vite.js*' -or
-  $_.CommandLine -like '*mock-server.ts*' -or
-  $_.CommandLine -like '*run mock*' -or
-  $_.CommandLine -like '*apps/api*' -or
-  $_.CommandLine -like '*nest.js*'
-}
-
-foreach ($process in $processes) {
-  Stop-Process -Id $process.ProcessId -Force
-}
+$listenPorts = @(3000, 5173)
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+  Where-Object { $listenPorts -contains $_.LocalPort } |
+  Select-Object -ExpandProperty OwningProcess -Unique |
+  ForEach-Object {
+    Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue
+  }
 
 Write-Host "Development processes stopped."

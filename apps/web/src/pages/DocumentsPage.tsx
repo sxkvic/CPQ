@@ -13,13 +13,6 @@ type TemplateForm = {
   isDefault?: boolean;
 };
 
-type TemplateRow = TemplateForm & {
-  id: string;
-  version: number;
-  status: string;
-  updatedAt: string;
-};
-
 export function DocumentsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);

@@ -1,4 +1,4 @@
-import http from 'node:http';
+﻿import http from 'node:http';
 import { URL } from 'node:url';
 
 type Customer = {
@@ -791,6 +791,8 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && submitMatch) {
     const quote = quotes.find((item) => item.id === submitMatch[1]);
     if (!quote) return json(response, { message: 'Not found' }, 404);
+    if (quote.status !== 'draft') return json(response, { message: '只有草稿报价可以提交审批' }, 400);
+    if (!quote.items.length) return json(response, { message: '报价至少需要一条明细' }, 400);
     quote.status = 'pending_approval';
     snapshot(quote, '提交审批快照');
     writeAudit(quote.id, 'quote.submit');
@@ -809,6 +811,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && markSentMatch) {
     const quote = quotes.find((item) => item.id === markSentMatch[1]);
     if (!quote) return json(response, { message: 'Not found' }, 404);
+    if (quote.status !== 'approved') return json(response, { message: '只有已批准报价可以标记为已发送' }, 400);
     quote.status = 'sent';
     writeAudit(quote.id, 'quote.mark_sent');
     return json(response, withCustomer(quote));
@@ -817,6 +820,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && markAcceptedMatch) {
     const quote = quotes.find((item) => item.id === markAcceptedMatch[1]);
     if (!quote) return json(response, { message: 'Not found' }, 404);
+    if (!['approved', 'sent'].includes(quote.status)) {
+      return json(response, { message: '只有已批准或已发送报价可以标记为已接受' }, 400);
+    }
     quote.status = 'accepted';
     writeAudit(quote.id, 'quote.mark_accepted');
     return json(response, withCustomer(quote));
@@ -846,6 +852,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && markRejectedMatch) {
     const quote = quotes.find((item) => item.id === markRejectedMatch[1]);
     if (!quote) return json(response, { message: 'Not found' }, 404);
+    if (!['approved', 'sent'].includes(quote.status)) {
+      return json(response, { message: '只有已批准或已发送报价可以标记为已拒绝' }, 400);
+    }
     quote.status = 'rejected';
     writeAudit(quote.id, 'quote.mark_rejected');
     return json(response, withCustomer(quote));
@@ -854,6 +863,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && cancelMatch) {
     const quote = quotes.find((item) => item.id === cancelMatch[1]);
     if (!quote) return json(response, { message: 'Not found' }, 404);
+    if (quote.status !== 'draft') return json(response, { message: '只有草稿报价可以提交审批' }, 400);
     quote.status = 'canceled';
     writeAudit(quote.id, 'quote.cancel');
     return json(response, withCustomer(quote));
@@ -909,6 +919,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === 'POST' && approvalActionMatch) {
     const approval = approvals.find((item) => item.id === approvalActionMatch[1]);
     if (!approval) return json(response, { message: 'Not found' }, 404);
+    if (approval.status !== 'pending') return json(response, { message: '该审批已处理' }, 400);
     approval.status = approvalActionMatch[2] === 'approve' ? 'approved' : 'rejected';
     approval.quote.status = approvalActionMatch[2] === 'approve' ? 'approved' : 'draft';
     writeAudit(approval.quote.id, approvalActionMatch[2] === 'approve' ? 'quote.approve' : 'quote.reject');
@@ -1111,3 +1122,5 @@ const server = http.createServer(async (request, response) => {
 server.listen(3000, () => {
   console.log('Mock API listening on http://localhost:3000/api/v1');
 });
+
+

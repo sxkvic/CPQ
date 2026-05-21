@@ -8,14 +8,49 @@ body {
 }
 
 .login-page {
+  box-sizing: border-box;
   display: grid;
   min-height: 100vh;
+  padding: 24px;
   place-items: center;
-  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 48%, #ecfeff 100%);
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.08) 44%, rgba(255, 255, 255, 0.16) 100%),
+    url("/login-background/chatgpt-image-20260521-134507-01.png") center / cover no-repeat;
+  isolation: isolate;
+}
+
+.login-page::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(circle at 78% 20%, rgba(255, 255, 255, 0.36), transparent 34%);
+  content: "";
 }
 
 .login-panel {
+  z-index: 1;
   width: min(420px, calc(100vw - 32px));
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.login-panel .ant-card-body {
+  padding: 32px;
+}
+
+@media (max-width: 560px) {
+  .login-page {
+    padding: 16px;
+    background-position: center;
+  }
+
+  .login-panel .ant-card-body {
+    padding: 24px;
+  }
 }
 
 .page-header {

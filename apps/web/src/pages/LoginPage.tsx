@@ -34,12 +34,17 @@ export function LoginPage() {
           <br />
           可试：sales01、pm01、price01、manager01，密码任意
         </Typography.Paragraph>
-        <Form<LoginForm> layout="vertical" onFinish={onFinish} initialValues={{ username: 'admin' }}>
+        <Form<LoginForm>
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{ username: 'admin' }}
+          autoComplete="on"
+        >
           <Form.Item name="username" label="账号" rules={[{ required: true, message: '请输入账号' }]}>
-            <Input prefix={<UserOutlined />} placeholder="请输入账号" />
+            <Input prefix={<UserOutlined />} placeholder="请输入账号" autoComplete="username" />
           </Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" />
+            <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" autoComplete="current-password" />
           </Form.Item>
           <Button type="primary" htmlType="submit" block>
             登录

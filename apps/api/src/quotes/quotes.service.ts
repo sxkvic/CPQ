@@ -212,6 +212,9 @@ export class QuotesService {
   async submit(quoteId: string) {
     const calculated = await this.calculate(quoteId);
     this.ensureDraft(calculated.status);
+    if (!calculated.items.length) {
+      throw new BadRequestException('报价至少需要一条明细');
+    }
     const approvalReasons = calculated.approvalReasons.length
       ? calculated.approvalReasons
       : ['标准报价提交审批'];
@@ -352,7 +355,7 @@ export class QuotesService {
     return `<!doctype html>
       <html lang="zh-CN"><head><meta charset="utf-8" /><title>${quote.quoteNo}</title>
       <style>body{font-family:Arial,"Microsoft YaHei",sans-serif;padding:32px;color:#111827}h1{margin:0 0 8px}.meta{color:#6b7280;margin-bottom:24px}table{width:100%;border-collapse:collapse;margin:24px 0}th,td{border:1px solid #d1d5db;padding:10px;text-align:left}th{background:#f3f4f6}.total{text-align:right;font-size:20px;font-weight:700}</style>
-      </head><body><h1>报价单</h1><div class="meta">报价编号：${quote.quoteNo}　版本：V${quote.version}</div>
+      </head><body><h1>报价单</h1><div class="meta">报价编号：${quote.quoteNo}&nbsp;&nbsp;版本：V${quote.version}</div>
       <p>客户：${this.escapeHtml(quote.customer.name)}</p><p>状态：${quote.status}</p>
       <table><thead><tr><th>行号</th><th>产品</th><th>SKU</th><th>数量</th><th>单价</th><th>折扣率</th><th>含税总价</th></tr></thead><tbody>${rows}</tbody></table>
       <p class="total">报价总额：¥${quote.totalAmount}</p>
